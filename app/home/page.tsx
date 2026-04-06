@@ -7,7 +7,7 @@ import { haversineDistance, getTrustRank, formatDistance } from '@/lib/utils'
 import { BottomNav } from '../components/BottomNav'
 import { LangToggle } from '../components/LangToggle'
 import { useLang } from '../context/LanguageContext'
-import { requestNotificationPermission, onMessage, messaging } from '@/lib/firebase'
+import { requestNotificationPermission, onMessage } from '@/lib/firebase'
 
 interface DriverWithDistance {
   id: string
@@ -70,34 +70,32 @@ export default function HomePage() {
     )
   }, [router])
 
-  // ── FCM setup ────────────────────────────────────────────────────────────────
+  // ── Web Push setup ───────────────────────────────────────────────────────────
   useEffect(() => {
-    const setupFCM = async () => {
+    const setupPushNotification = async () => {
       try {
-        const token = await requestNotificationPermission()
-        if (!token) return
+        const subscriptionJson = await requestNotificationPermission()
+        if (!subscriptionJson) return
 
         const shipperId = localStorage.getItem('shipperId')
         if (!shipperId) return
 
         await supabase
           .from('shipper_profiles')
-          .update({ fcm_token: token })
+          .update({ fcm_token: subscriptionJson })
           .eq('id', shipperId)
 
-        localStorage.setItem('fcmToken', token)
+        localStorage.setItem('pushSubscription', subscriptionJson)
 
-        if (messaging) {
-          onMessage(messaging, (payload) => {
-            console.log('Shipper foreground message:', payload)
-          })
-        }
+        onMessage((payload) => {
+          console.log('Shipper push received:', payload)
+        })
       } catch (err) {
-        console.error('FCM setup error:', err)
+        console.error('Push notification setup error:', err)
       }
     }
 
-    setupFCM()
+    setupPushNotification()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
