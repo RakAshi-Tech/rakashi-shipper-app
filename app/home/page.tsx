@@ -7,6 +7,7 @@ import { haversineDistance, getTrustRank, formatDistance } from '@/lib/utils'
 import { BottomNav } from '../components/BottomNav'
 import { LangToggle } from '../components/LangToggle'
 import { useLang } from '../context/LanguageContext'
+import { requestNotificationPermission, onMessage, messaging } from '@/lib/firebase'
 
 interface DriverWithDistance {
   id: string
@@ -68,6 +69,37 @@ export default function HomePage() {
       }
     )
   }, [router])
+
+  // ── FCM setup ────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    const setupFCM = async () => {
+      try {
+        const token = await requestNotificationPermission()
+        if (!token) return
+
+        const shipperId = localStorage.getItem('shipperId')
+        if (!shipperId) return
+
+        await supabase
+          .from('shipper_profiles')
+          .update({ fcm_token: token })
+          .eq('id', shipperId)
+
+        localStorage.setItem('fcmToken', token)
+
+        if (messaging) {
+          onMessage(messaging, (payload) => {
+            console.log('Shipper foreground message:', payload)
+          })
+        }
+      } catch (err) {
+        console.error('FCM setup error:', err)
+      }
+    }
+
+    setupFCM()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const fetchDrivers = useCallback(
     async (lat: number, lng: number) => {

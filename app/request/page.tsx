@@ -82,7 +82,38 @@ export default function RequestPage() {
     }, 2000)
   }
 
-  const sendRequestToDrivers = async (requestId: string) => {
+  const sendPushNotification = async (
+    driverId: string,
+    requestId: string,
+    requestData: { pickup_address: string; delivery_address: string; proposed_fare_inr: number | null }
+  ) => {
+    try {
+      await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/send-notification`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({
+            driverId,
+            requestId,
+            pickupAddress: requestData.pickup_address,
+            deliveryAddress: requestData.delivery_address,
+            fare: requestData.proposed_fare_inr ?? 0,
+          }),
+        }
+      )
+    } catch (err) {
+      console.error('Push notification error:', err)
+    }
+  }
+
+  const sendRequestToDrivers = async (
+    requestId: string,
+    requestData: { pickup_address: string; delivery_address: string; proposed_fare_inr: number | null }
+  ) => {
     const selectedDriverId = localStorage.getItem('selectedDriverId')
     try {
       if (selectedDriverId) {
@@ -91,6 +122,7 @@ export default function RequestPage() {
           driver_id: selectedDriverId,
           status: 'sent',
         })
+        await sendPushNotification(selectedDriverId, requestId, requestData)
       } else {
         const { data: topDrivers } = await supabase
           .from('driver_profiles')
@@ -106,6 +138,7 @@ export default function RequestPage() {
               driver_id: d.id,
               status: 'sent',
             })
+            await sendPushNotification(d.id, requestId, requestData)
           }
         }
       }
@@ -141,7 +174,11 @@ export default function RequestPage() {
       if (error) throw error
 
       if (data) {
-        await sendRequestToDrivers(data.id)
+        await sendRequestToDrivers(data.id, {
+          pickup_address: pickupAddress,
+          delivery_address: deliveryAddress,
+          proposed_fare_inr: proposedFare ? parseFloat(proposedFare) : null,
+        })
         router.push(`/status/${data.id}`)
       }
     } catch (err) {
